@@ -60,6 +60,22 @@ async function getTournamentBySlug(slug) {
   )
 }
 
+async function deleteArchivedTournamentCascade(tournamentId) {
+  await qBatch(
+    [
+      {
+        sql: 'DELETE FROM team_players WHERE teamId IN (SELECT id FROM teams WHERE tournamentId = ?)',
+        args: [tournamentId],
+      },
+      { sql: 'DELETE FROM teams WHERE tournamentId = ?', args: [tournamentId] },
+      { sql: 'DELETE FROM matches WHERE tournamentId = ?', args: [tournamentId] },
+      { sql: 'DELETE FROM registrations WHERE tournamentId = ?', args: [tournamentId] },
+      { sql: 'DELETE FROM tournaments WHERE id = ?', args: [tournamentId] },
+    ],
+    'write',
+  )
+}
+
 function buildSnapshotPayload({ tournament, teams, players, matches }) {
   const standings = computeStandings({ teams, matches })
 
@@ -294,6 +310,91 @@ app.delete('/api/admin/turso-local', async (req, res, next) => {
     requireTursoAdmin(req)
     await clearTursoLocalAndReinit()
     res.json({ ok: true, ...getDbStatus() })
+  } catch (e) {
+    next(e)
+  }
+})
+
+/** Compte admin Turso : liste des tournois archivés (candidats à la suppression pour libérer de l’espace). */
+app.get('/api/admin/turso-cleanup/archived', async (req, res, next) => {
+  try {
+    requireTursoAdmin(req)
+    const rows = await qAll(
+      `SELECT t.id, t.name, t.slug, t.archivedAt, t.createdAt,
+        (SELECT COUNT(*) FROM teams WHERE tournamentId = t.id) AS teams,
+        (SELECT COUNT(*) FROM matches WHERE tournamentId = t.id) AS matches,
+        (SELECT COUNT(*) FROM registrations WHERE tournamentId = t.id) AS registrations
+       FROM tournaments t
+       WHERE t.status = 'archived'
+       ORDER BY COALESCE(t.archivedAt, t.createdAt) DESC`,
+      [],
+    )
+    const tournaments = rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      slug: r.slug,
+      archivedAt: r.archivedAt,
+      createdAt: r.createdAt,
+      teams: Number(r.teams ?? 0),
+      matches: Number(r.matches ?? 0),
+      registrations: Number(r.registrations ?? 0),
+    }))
+    res.json({ tournaments })
+  } catch (e) {
+    next(e)
+  }
+})
+
+/** Supprime définitivement un tournoi archivé et toutes ses données liées. */
+app.delete('/api/admin/turso-cleanup/archived/:slug', async (req, res, next) => {
+  try {
+    requireTursoAdmin(req)
+    const slug = String(req.params.slug)
+    const tournament = await getTournamentBySlug(slug)
+    if (!tournament) return res.status(404).send('Tournoi introuvable.')
+    if (tournament.status !== 'archived') {
+      return res.status(400).send('Seuls les tournois archivés peuvent être supprimés.')
+    }
+    await deleteArchivedTournamentCascade(tournament.id)
+    schedulePublishSnapshot(slug)
+    res.json({ ok: true })
+  } catch (e) {
+    next(e)
+  }
+})
+
+/** Supprime tous les tournois archivés (body.confirm doit valoir « ARCHIVÉS »). */
+app.post('/api/admin/turso-cleanup/purge-archived', async (req, res, next) => {
+  try {
+    requireTursoAdmin(req)
+    z.object({ confirm: z.literal('ARCHIVÉS') }).parse(req.body)
+    const archived = await qAll("SELECT id, slug FROM tournaments WHERE status = 'archived'", [])
+    let deleted = 0
+    for (const row of archived) {
+      await deleteArchivedTournamentCascade(row.id)
+      schedulePublishSnapshot(String(row.slug))
+      deleted += 1
+    }
+    res.json({ ok: true, deleted })
+  } catch (e) {
+    next(e)
+  }
+})
+
+/** Tente VACUUM (SQLite) ; sur Turso distant l’opération peut être refusée ou sans effet majeur. */
+app.post('/api/admin/turso-cleanup/vacuum', async (req, res, next) => {
+  try {
+    requireTursoAdmin(req)
+    try {
+      await qRun('VACUUM', [])
+      res.json({ ok: true, ran: true })
+    } catch (vacErr) {
+      res.json({
+        ok: false,
+        ran: false,
+        message: vacErr instanceof Error ? vacErr.message : String(vacErr),
+      })
+    }
   } catch (e) {
     next(e)
   }
@@ -696,20 +797,7 @@ app.delete('/api/tournaments/:slug', async (req, res, next) => {
       return res.status(400).send('Seuls les tournois archivés peuvent être supprimés.')
     }
 
-    const tid = tournament.id
-    await qBatch(
-      [
-        {
-          sql: 'DELETE FROM team_players WHERE teamId IN (SELECT id FROM teams WHERE tournamentId = ?)',
-          args: [tid],
-        },
-        { sql: 'DELETE FROM teams WHERE tournamentId = ?', args: [tid] },
-        { sql: 'DELETE FROM matches WHERE tournamentId = ?', args: [tid] },
-        { sql: 'DELETE FROM registrations WHERE tournamentId = ?', args: [tid] },
-        { sql: 'DELETE FROM tournaments WHERE id = ?', args: [tid] },
-      ],
-      'write',
-    )
+    await deleteArchivedTournamentCascade(tournament.id)
 
     res.json({ ok: true })
   } catch (e) {

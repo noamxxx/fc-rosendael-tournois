@@ -100,6 +100,42 @@ export async function disconnectTursoLocalFile(): Promise<TursoConnectionStatus 
   return api('/api/admin/turso-local', { method: 'DELETE' })
 }
 
+export type ArchivedForCleanup = {
+  id: string
+  name: string
+  slug: string
+  archivedAt: string | null
+  createdAt: string
+  teams: number
+  matches: number
+  registrations: number
+}
+
+export async function listArchivedForCleanup(): Promise<{ tournaments: ArchivedForCleanup[] }> {
+  return api('/api/admin/turso-cleanup/archived')
+}
+
+export async function deleteArchivedForCleanup(slug: string): Promise<void> {
+  await api(`/api/admin/turso-cleanup/archived/${encodeURIComponent(slug)}`, { method: 'DELETE' })
+}
+
+export async function purgeAllArchivedForCleanup(
+  confirm: 'ARCHIVÉS',
+): Promise<{ ok: boolean; deleted: number }> {
+  return api('/api/admin/turso-cleanup/purge-archived', {
+    method: 'POST',
+    body: JSON.stringify({ confirm }),
+  })
+}
+
+export async function vacuumTursoCleanup(): Promise<{
+  ok: boolean
+  ran?: boolean
+  message?: string
+}> {
+  return api('/api/admin/turso-cleanup/vacuum', { method: 'POST', body: JSON.stringify({}) })
+}
+
 export async function createTournament(input: {
   name: string
 }): Promise<{ tournament: TournamentPublic }> {
