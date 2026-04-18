@@ -1,0 +1,2 @@
+/*
+  Permissions-Policy: identity-credentials-get=(self "https://accounts.google.com")

@@ -1,0 +1,32 @@
+# Dépendances
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Build & cache
+client/dist/
+*.log
+.DS_Store
+
+# Secrets & données locales
+.env
+.env.*
+!.env.example
+client/.env
+client/.env.*
+!client/.env.example
+server/.turso-local.json
+data.sqlite
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Outils / IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Wrangler / Cloudflare (cache local)
+.wrangler/
+.dev.vars

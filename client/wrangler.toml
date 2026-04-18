@@ -1,0 +1,12 @@
+# Projet Cloudflare Pages (création : npx wrangler pages project create <nom>)
+name = "club-rosendael-tournois"
+compatibility_date = "2025-04-01"
+
+# --- Connexion Google sur Pages ---
+# 1) Google Cloud Console → APIs & Services → Identifiants → client OAuth « Application Web »
+# 2) Origines JavaScript autorisées : https://<nom-projet>.pages.dev + ton domaine custom éventuel
+# 3) Cloudflare Dashboard → ton projet Pages → Settings → Environment variables → onglet « Build » :
+#      VITE_GOOGLE_CLIENT_ID = le Client ID (…apps.googleusercontent.com)
+#      VITE_API_URL = URL HTTPS de ton API (obligatoire en prod)
+# 4) Sur le serveur API : GOOGLE_CLIENT_ID (même valeur), ADMIN_GOOGLE_EMAILS = emails autorisés
+# Puis relancer un déploiement (les variables VITE_ sont injectées au moment du build).
