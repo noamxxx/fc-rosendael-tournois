@@ -3,7 +3,9 @@
 # 1) Première fois (obligatoire une fois) : https://dashboard.render.com → New → Blueprint
 #    → connecter ce dépôt Git → branche `main` → Deploy. Renseigner les variables `sync: false`.
 # 2) Ensuite : chaque push sur `main` qui modifie `server/**` ou ce fichier relance le build.
-# 3) CLI : installer https://render.com/docs/cli puis `npm run render:login` et `npm run render:validate`
+# 3) CLI : https://render.com/docs/cli — `render login` puis `npm run render:validate`
+#    Si `validate` échoue (« repo not found » / branche) : dépôt GitHub privé ou accès GitHub
+#    non lié au compte Render — lie GitHub dans le dashboard ; le déploiement Blueprint reste la référence.
 #
 # Après déploiement : URL du type `https://fc-rosendael-api.onrender.com`
 # → Cloudflare Pages : variable de build `VITE_API_URL` = cette URL (HTTPS, sans slash final).
@@ -14,6 +16,7 @@
 services:
   - type: web
     name: fc-rosendael-api
+    repo: https://github.com/noamxxx/fc-rosendael-tournois.git
     runtime: node
     region: frankfurt
     plan: free
