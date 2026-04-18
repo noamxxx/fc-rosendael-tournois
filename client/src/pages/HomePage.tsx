@@ -1,7 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getOpenRegistration, listTournaments } from '../lib/api'
-import type { TournamentPublic } from '../lib/types'
+import { API_BASE_CONFIGURED } from '../lib/config'
+import { getSocket } from '../lib/socket'
+import type { TournamentPublic, TournamentSnapshot } from '../lib/types'
 import { Card, CardBody } from '../ui/Card'
 import { Layout } from '../ui/Layout'
 
@@ -61,6 +63,41 @@ export function HomePage() {
     if (liveMode === 'slug') return live
     return live ?? active[0] ?? null
   }, [active, liveMode])
+
+  /** Mise à jour temps réel de la carte « vedette » (même canal Socket.io que /t/:slug). */
+  useEffect(() => {
+    if (!API_BASE_CONFIGURED) return
+    const slug = current?.slug?.trim()
+    if (!slug) return
+
+    let alive = true
+    const room = `tournament:${slug}`
+    const socket = getSocket()
+    const join = () => socket.emit('join', { room })
+
+    const onSnapshot = (payload: { slug: string; snapshot: TournamentSnapshot }) => {
+      if (!alive || payload.slug !== slug) return
+      const next = payload.snapshot.tournament
+      setActive((prev) =>
+        prev.map((t) => (t.slug === slug ? { ...t, ...next } : t)),
+      )
+    }
+
+    const onConnect = () => {
+      join()
+    }
+
+    join()
+    socket.on('tournament:snapshot', onSnapshot)
+    socket.on('connect', onConnect)
+
+    return () => {
+      alive = false
+      socket.off('tournament:snapshot', onSnapshot)
+      socket.off('connect', onConnect)
+      socket.emit('leave', { room })
+    }
+  }, [current?.slug])
 
   const directActif = Boolean(current?.liveMatchId)
 

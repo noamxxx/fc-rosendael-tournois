@@ -55,7 +55,6 @@ export function useTournamentLive(slug: string) {
 
     const socket = getSocket()
     const join = () => socket.emit('join', { room })
-    join()
 
     const onSnapshot = (payload: { slug: string; snapshot: TournamentSnapshot }) => {
       if (!alive) return
@@ -63,16 +62,22 @@ export function useTournamentLive(slug: string) {
       setState({ status: 'ready', data: payload.snapshot })
     }
 
+    const onConnect = () => {
+      join()
+      void reloadSnapshot()
+    }
+
+    join()
     socket.on('tournament:snapshot', onSnapshot)
-    socket.on('connect', join)
+    socket.on('connect', onConnect)
 
     return () => {
       alive = false
       socket.off('tournament:snapshot', onSnapshot)
-      socket.off('connect', join)
+      socket.off('connect', onConnect)
       socket.emit('leave', { room })
     }
-  }, [slug, room])
+  }, [slug, room, reloadSnapshot])
 
   return { state, reloadSnapshot }
 }
