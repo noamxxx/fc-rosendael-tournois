@@ -11,3 +11,7 @@ pages_build_output_dir = "./dist"
 #      VITE_API_URL = URL HTTPS de ton API (obligatoire en prod)
 # 4) Sur le serveur API : GOOGLE_CLIENT_ID (même valeur), ADMIN_GOOGLE_EMAILS = emails autorisés
 # Puis relancer un déploiement (les variables VITE_ sont injectées au moment du build).
+#
+# Base de données : Pages ne sert que le front. L’API Node (dossier server/) doit tourner ailleurs.
+# Base cloud recommandée (déjà gérée par le code) : Turso → variables TURSO_DATABASE_URL + TURSO_AUTH_TOKEN
+# sur l’hébergeur de l’API (voir server/.env.example).
