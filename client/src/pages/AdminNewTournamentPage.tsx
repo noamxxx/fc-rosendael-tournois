@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getAdminSessionRole } from '../lib/adminSessionRole'
 import { createTournament } from '../lib/api'
 import { Card, CardBody } from '../ui/Card'
 import { Layout } from '../ui/Layout'
@@ -16,6 +17,9 @@ function normalizeSlug(name: string) {
 
 export function AdminNewTournamentPage() {
   const nav = useNavigate()
+  useEffect(() => {
+    if (getAdminSessionRole() === 'turso') nav('/admin/turso', { replace: true })
+  }, [nav])
   const [name, setName] = useState('Tournoi Rosendael')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

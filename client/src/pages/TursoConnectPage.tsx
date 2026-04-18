@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { notifyAdminAuthChanged } from '../lib/adminAuth'
+import { clearAdminSessionRole, getAdminSessionRole } from '../lib/adminSessionRole'
 import {
   connectTursoRemote,
   disconnectTursoLocalFile,
@@ -21,6 +23,10 @@ export function TursoConnectPage() {
 
   useEffect(() => {
     if (!localStorage.getItem('adminToken')) {
+      nav('/admin', { replace: true })
+      return
+    }
+    if (getAdminSessionRole() !== 'turso') {
       nav('/admin', { replace: true })
       return
     }
@@ -71,7 +77,7 @@ export function TursoConnectPage() {
         <Card>
           <CardBody className="space-y-4">
             <div>
-              <div className="text-xs font-semibold tracking-wide text-black/55">TURSO</div>
+              <div className="text-xs font-semibold tracking-wide text-black/55">ADMIN — BASE TURSO</div>
               <h1 className="mt-1 text-xl font-bold text-black/90">Connexion base distante</h1>
               <p className="mt-2 text-sm leading-relaxed text-black/60">
                 Turso n’utilise pas ton compte Google pour parler à la base : il faut une URL{' '}
@@ -153,8 +159,17 @@ export function TursoConnectPage() {
               <Button variant="ghost" disabled={busy || status?.source !== 'local_file'} onClick={() => void removeLocalFile()}>
                 Oublier la config locale Turso
               </Button>
-              <Button variant="ghost" disabled={busy} onClick={() => nav('/admin')}>
-                Retour admin
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() => {
+                  localStorage.removeItem('adminToken')
+                  clearAdminSessionRole()
+                  notifyAdminAuthChanged()
+                  nav('/admin', { replace: true })
+                }}
+              >
+                Déconnexion
               </Button>
             </div>
           </CardBody>

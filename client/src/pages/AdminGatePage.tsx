@@ -2,6 +2,7 @@ import { GoogleLogin } from '@react-oauth/google'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ADMIN_AUTH_CHANGED_EVENT, notifyAdminAuthChanged } from '../lib/adminAuth'
+import { clearAdminSessionRole, getAdminSessionRole } from '../lib/adminSessionRole'
 import { adminLogin, adminLoginWithGoogle, deleteTournament, listTournaments, setLiveTournament } from '../lib/api'
 import { API_BASE_CONFIGURED } from '../lib/config'
 import type { TournamentPublic } from '../lib/types'
@@ -31,8 +32,15 @@ export function AdminGatePage() {
   }, [])
 
   useEffect(() => {
+    if (isLoggedIn && getAdminSessionRole() === 'turso') {
+      nav('/admin/turso', { replace: true })
+    }
+  }, [isLoggedIn, authRevision, nav])
+
+  useEffect(() => {
     let alive = true
     async function load() {
+      if (getAdminSessionRole() === 'turso') return
       try {
         const data = await listTournaments()
         if (!alive) return
@@ -49,14 +57,14 @@ export function AdminGatePage() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [authRevision])
 
   async function go() {
     setError(null)
     setBusy(true)
     try {
-      await adminLogin(password.trim())
-      nav('/admin')
+      const { role } = await adminLogin(password.trim())
+      nav(role === 'turso' ? '/admin/turso' : '/admin')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur inconnue')
     } finally {
@@ -66,6 +74,7 @@ export function AdminGatePage() {
 
   function logout() {
     localStorage.removeItem('adminToken')
+    clearAdminSessionRole()
     notifyAdminAuthChanged()
     nav('/admin')
   }
@@ -142,7 +151,7 @@ export function AdminGatePage() {
                     }}
                     onError={() => setError('Connexion Google annulée ou indisponible.')}
                   />
-                  <div className="text-xs text-black/45">ou mot de passe</div>
+                  <div className="text-xs text-black/45">ou mot de passe (tournois ou compte base Turso)</div>
                 </div>
               ) : null}
               <Input
@@ -166,7 +175,7 @@ export function AdminGatePage() {
               ) : null}
             </CardBody>
           </Card>
-        ) : (
+        ) : getAdminSessionRole() === 'turso' ? null : (
           <div className="grid gap-4">
             {error ? (
               <Card>
@@ -188,9 +197,6 @@ export function AdminGatePage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={() => nav('/admin/new')}>Créer un tournoi</Button>
-                  <Button variant="ghost" onClick={() => nav('/admin/turso')}>
-                    Base Turso
-                  </Button>
                   <Button variant="ghost" onClick={logout}>Déconnexion</Button>
                 </div>
               </CardBody>

@@ -56,7 +56,7 @@ export function ViewerTournamentPage() {
         </Button>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-2">
         {state.status === 'loading' && (
           <Card>
             <CardBody>
@@ -79,7 +79,7 @@ export function ViewerTournamentPage() {
             {state.data.bracket ? (
               <>
                 <div
-                  className="lg:col-span-2 scroll-mt-24"
+                  className="min-w-0 lg:col-span-2 scroll-mt-24"
                   id={state.data.tournament.liveMatchId ? 'live' : undefined}
                 >
                   <BracketView

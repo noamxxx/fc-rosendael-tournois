@@ -21,6 +21,7 @@ import {
 } from '../lib/api'
 import type { Match } from '../lib/types'
 import { ADMIN_AUTH_CHANGED_EVENT } from '../lib/adminAuth'
+import { getAdminSessionRole } from '../lib/adminSessionRole'
 import { downloadClubQrFlyersPdf } from '../lib/buildQrFlyersPdf'
 import { API_URL } from '../lib/config'
 import { safeFileSlug } from '../lib/safeFileSlug'
@@ -143,6 +144,10 @@ function pickDefaultLiveMatchId(matches: Match[]): string {
 export function AdminTournamentPage() {
   const { slug } = useParams()
   const nav = useNavigate()
+
+  useEffect(() => {
+    if (getAdminSessionRole() === 'turso') nav('/admin/turso', { replace: true })
+  }, [nav])
 
   const { state, reloadSnapshot } = useTournamentLive(slug ?? '')
 
@@ -629,8 +634,8 @@ export function AdminTournamentPage() {
                     </CardBody>
                   </Card>
 
-                  <Card className="relative isolate overflow-x-hidden">
-                    <CardBody className="relative">
+                  <Card className="relative isolate min-w-0">
+                    <CardBody className="relative min-w-0">
                       <BracketView
                         teams={state.data.teams}
                         rounds={state.data.bracket.rounds}

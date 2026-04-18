@@ -25,6 +25,8 @@ const PORT = Number(process.env.PORT || 5174)
 // - otherwise, use the provided explicit origin.
 const ORIGIN = process.env.ORIGIN || '*'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin'
+/** Mot de passe du compte « base Turso » uniquement (pas d’accès tournois). Défaut local 1256 ; en prod, définir sur l’hébergeur. */
+const ADMIN_TURSO_PASSWORD = process.env.ADMIN_TURSO_PASSWORD ?? '1256'
 const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || 'rosendael-dev-secret'
 
 let googleOAuthClient = null
@@ -107,7 +109,7 @@ function verifyAdminToken(token) {
   return payload
 }
 
-function requireAdminAuth(req) {
+function requireAuthPayload(req) {
   const hdr = req.headers.authorization || ''
   const m = /^Bearer (.+)$/.exec(String(hdr))
   const token = m?.[1]
@@ -115,6 +117,27 @@ function requireAdminAuth(req) {
   if (!payload) {
     const err = new Error('Non autorisé.')
     err.status = 401
+    throw err
+  }
+  return payload
+}
+
+/** Admin principal (tournois, inscriptions, etc.). Jetons sans `role` = ancienne session = plein accès. */
+function requireFullAdmin(req) {
+  const payload = requireAuthPayload(req)
+  if (payload.role === 'turso') {
+    const err = new Error('Accès réservé à l’administrateur principal.')
+    err.status = 403
+    throw err
+  }
+}
+
+/** Uniquement les routes Turso (mot de passe secondaire). */
+function requireTursoAdmin(req) {
+  const payload = requireAuthPayload(req)
+  if (payload.role !== 'turso') {
+    const err = new Error('Connexion « base Turso » réservée au compte dédié.')
+    err.status = 403
     throw err
   }
 }
@@ -191,9 +214,16 @@ app.get('/health', (_req, res) => res.json({ ok: true }))
 app.post('/api/admin/login', (req, res, next) => {
   try {
     const body = z.object({ password: z.string().min(1) }).parse(req.body)
-    if (body.password !== ADMIN_PASSWORD) return res.status(401).send('Mot de passe incorrect.')
-    const token = signAdminToken({ sub: 'admin', exp: Date.now() + 1000 * 60 * 60 * 24 })
-    res.json({ token })
+    const exp = Date.now() + 1000 * 60 * 60 * 24
+    if (body.password === ADMIN_PASSWORD) {
+      const token = signAdminToken({ sub: 'admin', role: 'full', exp })
+      return res.json({ token, role: 'full' })
+    }
+    if (ADMIN_TURSO_PASSWORD && body.password === ADMIN_TURSO_PASSWORD) {
+      const token = signAdminToken({ sub: 'admin', role: 'turso', exp })
+      return res.json({ token, role: 'turso' })
+    }
+    return res.status(401).send('Mot de passe incorrect.')
   } catch (e) {
     next(e)
   }
@@ -226,8 +256,8 @@ app.post('/api/auth/google', async (req, res, next) => {
         .send('ADMIN_GOOGLE_EMAILS doit contenir au moins une adresse autorisée (variable serveur).')
     }
     if (!allowed.includes(email)) return res.status(403).send('Ce compte Google n’est pas autorisé.')
-    const token = signAdminToken({ sub: 'admin', exp: Date.now() + 1000 * 60 * 60 * 24 })
-    res.json({ token, email })
+    const token = signAdminToken({ sub: 'admin', role: 'full', exp: Date.now() + 1000 * 60 * 60 * 24 })
+    res.json({ token, email, role: 'full' })
   } catch (e) {
     next(e)
   }
@@ -235,7 +265,7 @@ app.post('/api/auth/google', async (req, res, next) => {
 
 app.get('/api/admin/turso-status', (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireTursoAdmin(req)
     res.json(getDbStatus())
   } catch (e) {
     next(e)
@@ -244,7 +274,7 @@ app.get('/api/admin/turso-status', (req, res, next) => {
 
 app.post('/api/admin/turso-connect', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireTursoAdmin(req)
     const body = z
       .object({
         databaseUrl: z.string().regex(/^libsql:\/\/.+/),
@@ -261,7 +291,7 @@ app.post('/api/admin/turso-connect', async (req, res, next) => {
 /** Supprime server/.turso-local.json et repasse sur env ou fichier SQLite local. */
 app.delete('/api/admin/turso-local', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireTursoAdmin(req)
     await clearTursoLocalAndReinit()
     res.json({ ok: true, ...getDbStatus() })
   } catch (e) {
@@ -271,7 +301,7 @@ app.delete('/api/admin/turso-local', async (req, res, next) => {
 
 app.post('/api/tournaments', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const body = z
       .object({
         name: z.string().min(2).max(80),
@@ -426,7 +456,7 @@ app.post('/api/registration/signup', async (req, res, next) => {
 // Admin: open/close registrations for a tournament.
 app.put('/api/tournaments/:slug/registration', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -466,7 +496,7 @@ app.put('/api/tournaments/:slug/registration', async (req, res, next) => {
 // Admin: list registrations.
 app.get('/api/tournaments/:slug/registrations', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -484,7 +514,7 @@ app.get('/api/tournaments/:slug/registrations', async (req, res, next) => {
 // Admin: approve/reject registration.
 app.put('/api/tournaments/:slug/registrations/:id', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -520,7 +550,7 @@ app.put('/api/tournaments/:slug/registrations/:id', async (req, res, next) => {
 // Admin: auto-create teams of 2 from approved registrations not yet added.
 app.post('/api/tournaments/:slug/registrations/auto-teams', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -593,7 +623,7 @@ app.post('/api/tournaments/:slug/registrations/auto-teams', async (req, res, nex
 
 app.put('/api/tournaments/live', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const body = z
       .object({
         slug: z.string().min(1).nullable().optional(),
@@ -642,7 +672,7 @@ app.get('/api/tournaments/:slug', async (req, res, next) => {
 
 app.post('/api/tournaments/:slug/archive', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -658,7 +688,7 @@ app.post('/api/tournaments/:slug/archive', async (req, res, next) => {
 
 app.delete('/api/tournaments/:slug', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -689,7 +719,7 @@ app.delete('/api/tournaments/:slug', async (req, res, next) => {
 
 app.post('/api/tournaments/:slug/teams', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -731,7 +761,7 @@ app.post('/api/tournaments/:slug/teams', async (req, res, next) => {
 
 app.patch('/api/tournaments/:slug/teams/:teamId', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -757,7 +787,7 @@ app.patch('/api/tournaments/:slug/teams/:teamId', async (req, res, next) => {
 
 app.delete('/api/tournaments/:slug/teams/:teamId', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -791,7 +821,7 @@ app.delete('/api/tournaments/:slug/teams/:teamId', async (req, res, next) => {
 
 app.post('/api/tournaments/:slug/teams/:teamId/players', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -866,7 +896,7 @@ app.post('/api/tournaments/:slug/teams/:teamId/players', async (req, res, next) 
 
 app.patch('/api/tournaments/:slug/teams/:teamId/players/:playerId', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -914,7 +944,7 @@ app.patch('/api/tournaments/:slug/teams/:teamId/players/:playerId', async (req, 
 
 app.delete('/api/tournaments/:slug/teams/:teamId/players/:playerId', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -963,7 +993,7 @@ app.delete('/api/tournaments/:slug/teams/:teamId/players/:playerId', async (req,
 
 app.post('/api/tournaments/:slug/bracket/generate', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -1037,7 +1067,7 @@ app.post('/api/tournaments/:slug/bracket/generate', async (req, res, next) => {
 
 app.post('/api/tournaments/:slug/bracket/reset', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -1053,7 +1083,7 @@ app.post('/api/tournaments/:slug/bracket/reset', async (req, res, next) => {
 
 app.post('/api/tournaments/:slug/matches', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -1100,7 +1130,7 @@ app.post('/api/tournaments/:slug/matches', async (req, res, next) => {
 
 app.patch('/api/tournaments/:slug/matches/:matchId', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')
@@ -1156,7 +1186,7 @@ app.patch('/api/tournaments/:slug/matches/:matchId', async (req, res, next) => {
 
 app.put('/api/tournaments/:slug/live', async (req, res, next) => {
   try {
-    requireAdminAuth(req)
+    requireFullAdmin(req)
     const slug = String(req.params.slug)
     const tournament = await getTournamentBySlug(slug)
     if (!tournament) return res.status(404).send('Tournoi introuvable.')

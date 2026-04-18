@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { adminEntryPath } from '../lib/adminSessionRole'
 import { cn } from './cn'
 
 export function Layout({ children }: PropsWithChildren) {
@@ -7,7 +8,7 @@ export function Layout({ children }: PropsWithChildren) {
   const showLive = loc.pathname.startsWith('/t/')
 
   return (
-    <div className="min-h-screen overflow-x-hidden text-black">
+    <div className="min-h-screen min-w-0 overflow-x-hidden text-black">
       <div className="relative w-full">
         <div className="relative w-full overflow-hidden">
           <img
@@ -25,7 +26,7 @@ export function Layout({ children }: PropsWithChildren) {
           />
         </div>
       </div>
-      <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+      <div className="mx-auto min-w-0 max-w-6xl px-4 py-6 md:px-6">
         <header className="flex items-center justify-center">
           <Link to="/" className="flex flex-col items-center gap-3 text-center">
             <div
@@ -82,11 +83,11 @@ export function Layout({ children }: PropsWithChildren) {
           </Link>
         </header>
 
-        <main className="mt-6">{children}</main>
+        <main className="mt-6 min-w-0">{children}</main>
       </div>
 
       <Link
-        to="/admin"
+        to={adminEntryPath()}
         aria-label="Accès administrateur"
         title="Connexion administrateur"
         className="fixed bottom-5 right-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full border border-black/10 bg-white/80 text-black shadow-[0_18px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50"

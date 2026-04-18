@@ -416,6 +416,16 @@ export function BracketView({
 
   const scale = Math.max(0.35, Math.min(2, fitScale * userScale))
 
+  // Après zoom (pincement), scrollWidth change : recaler pour pouvoir atteindre tout le canvas (droite / bas).
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || !panMode) return
+    const maxL = Math.max(0, el.scrollWidth - el.clientWidth)
+    const maxT = Math.max(0, el.scrollHeight - el.clientHeight)
+    if (el.scrollLeft > maxL) el.scrollLeft = maxL
+    if (el.scrollTop > maxT) el.scrollTop = maxT
+  }, [panMode, scale, layout.canvasW, layout.canvasH, fitScale])
+
   function dist(t0: { clientX: number; clientY: number }, t1: { clientX: number; clientY: number }) {
     const dx = t0.clientX - t1.clientX
     const dy = t0.clientY - t1.clientY
@@ -467,8 +477,10 @@ export function BracketView({
       if (e.touches.length !== 1) return
       const dx = e.touches[0].clientX - pinchRef.current.dragStartX
       const dy = e.touches[0].clientY - pinchRef.current.dragStartY
-      el.scrollLeft = pinchRef.current.dragScrollLeft - dx
-      el.scrollTop = pinchRef.current.dragScrollTop - dy
+      const maxL = Math.max(0, el.scrollWidth - el.clientWidth)
+      const maxT = Math.max(0, el.scrollHeight - el.clientHeight)
+      el.scrollLeft = Math.max(0, Math.min(maxL, pinchRef.current.dragScrollLeft - dx))
+      el.scrollTop = Math.max(0, Math.min(maxT, pinchRef.current.dragScrollTop - dy))
       e.preventDefault()
     }
 
@@ -489,9 +501,9 @@ export function BracketView({
     }
   }, [panMode])
 
-  // Pointer Events fallback (more reliable on many Android/WebView setups).
-  // We keep it enabled for touch pointers even if isMobile detection fails.
+  // Pointer : uniquement hors mode « carte » pour éviter double traitement (touch + pointer) sur mobile.
   useEffect(() => {
+    if (panMode) return
     const el = scrollRef.current
     if (!el) return
 
@@ -523,8 +535,10 @@ export function BracketView({
       if (e.pointerId !== pointerId) return
       const dx = e.clientX - startX
       const dy = e.clientY - startY
-      el.scrollLeft = startLeft - dx
-      el.scrollTop = startTop - dy
+      const maxL = Math.max(0, el.scrollWidth - el.clientWidth)
+      const maxT = Math.max(0, el.scrollHeight - el.clientHeight)
+      el.scrollLeft = Math.max(0, Math.min(maxL, startLeft - dx))
+      el.scrollTop = Math.max(0, Math.min(maxT, startTop - dy))
       e.preventDefault()
     }
 
@@ -547,13 +561,13 @@ export function BracketView({
       el.removeEventListener('pointerup', onPointerUp as any)
       el.removeEventListener('pointercancel', onPointerUp as any)
     }
-  }, [])
+  }, [panMode])
 
   return (
-    <div className="relative" ref={outerRef}>
+    <div className="relative min-w-0 w-full" ref={outerRef}>
       <div
         className={cn(
-          'relative max-w-full',
+          'relative min-w-0 max-w-full',
           // Touch: allow 2D panning like a map/card.
           panMode ? 'overflow-auto' : 'overflow-x-hidden overflow-y-visible',
         )}

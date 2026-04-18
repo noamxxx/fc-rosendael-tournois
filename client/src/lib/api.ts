@@ -1,5 +1,6 @@
 import { API_URL, assertApiBaseConfigured } from './config'
 import { notifyAdminAuthChanged } from './adminAuth'
+import { clearAdminSessionRole, setAdminSessionRole, type AdminSessionRole } from './adminSessionRole'
 import type { TeamPlayer, TournamentSnapshot, TournamentPublic, TournamentsIndex } from './types'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -27,6 +28,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text().catch(() => '')
     if (res.status === 401) {
       localStorage.removeItem('adminToken')
+      clearAdminSessionRole()
       notifyAdminAuthChanged()
       const fromServer = text.trim()
       const fallback =
@@ -38,13 +40,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-export async function adminLogin(password: string): Promise<void> {
-  const res = await api<{ token: string }>('/api/admin/login', {
+export async function adminLogin(password: string): Promise<{ role: AdminSessionRole }> {
+  const res = await api<{ token: string; role: AdminSessionRole }>('/api/admin/login', {
     method: 'POST',
     body: JSON.stringify({ password }),
   })
   localStorage.setItem('adminToken', res.token)
+  setAdminSessionRole(res.role === 'turso' ? 'turso' : 'full')
   notifyAdminAuthChanged()
+  return { role: res.role === 'turso' ? 'turso' : 'full' }
 }
 
 /** Jeton Google (credential) → même session admin que le mot de passe. */
@@ -67,6 +71,7 @@ export async function adminLoginWithGoogle(credential: string): Promise<{ email?
   if (!res.ok) throw new Error(text || `Erreur serveur (${res.status}).`)
   const data = JSON.parse(text) as { token: string; email?: string }
   localStorage.setItem('adminToken', data.token)
+  setAdminSessionRole('full')
   notifyAdminAuthChanged()
   return { email: data.email }
 }
