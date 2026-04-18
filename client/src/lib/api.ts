@@ -4,17 +4,19 @@ import type { TeamPlayer, TournamentSnapshot, TournamentPublic, TournamentsIndex
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   assertApiBaseConfigured()
-  const token = localStorage.getItem('adminToken') ?? ''
+  // Ne pas envoyer un vieux Bearer sur la route login (sinon confusion + message 401 peu clair).
+  const skipBearer = path === '/api/admin/login'
+  const token = skipBearer ? '' : (localStorage.getItem('adminToken') ?? '')
   let res: Response
   try {
     res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
-  })
+      ...init,
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
+    })
   } catch (e) {
     const hint =
       'Impossible de joindre l’API. Vérifie VITE_API_URL (HTTPS), que le serveur tourne, et les en-têtes CORS (ORIGIN sur l’API).'
@@ -26,9 +28,10 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     if (res.status === 401) {
       localStorage.removeItem('adminToken')
       notifyAdminAuthChanged()
-      throw new Error(
-        'Session expirée, secret serveur différent, ou accès refusé. Reconnecte-toi via l’icône administrateur en bas à droite.',
-      )
+      const fromServer = text.trim()
+      const fallback =
+        'Session expirée, secret serveur différent, ou accès refusé. Reconnecte-toi via l’icône administrateur en bas à droite.'
+      throw new Error(fromServer || fallback)
     }
     throw new Error(text || `Erreur serveur (${res.status}).`)
   }
