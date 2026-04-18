@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ADMIN_AUTH_CHANGED_EVENT, notifyAdminAuthChanged } from '../lib/adminAuth'
 import { adminLogin, adminLoginWithGoogle, deleteTournament, listTournaments, setLiveTournament } from '../lib/api'
+import { API_BASE_CONFIGURED } from '../lib/config'
 import type { TournamentPublic } from '../lib/types'
 import { Card, CardBody } from '../ui/Card'
 import { Layout } from '../ui/Layout'
@@ -40,8 +41,8 @@ export function AdminGatePage() {
           archived: data.archived ?? [],
           liveMode: (data.liveMode as any) ?? 'auto',
         })
-      } catch {
-        // ignore here; login still usable
+      } catch (e) {
+        if (alive && e instanceof Error) setError(e.message)
       }
     }
     load()
@@ -102,7 +103,20 @@ export function AdminGatePage() {
 
   return (
     <Layout>
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-4xl space-y-4">
+        {!API_BASE_CONFIGURED ? (
+          <Card>
+            <CardBody className="rounded-xl border border-amber-500/35 bg-amber-500/10 text-sm text-amber-950">
+              <div className="font-semibold">API non configurée pour ce site</div>
+              <p className="mt-2 leading-relaxed">
+                Sur Cloudflare Pages : <strong>Settings</strong> → <strong>Environment variables</strong> →
+                section <strong>Build</strong>, ajoute <span className="font-mono">VITE_API_URL</span> avec
+                l’URL <strong>HTTPS</strong> de ton serveur Node (sans slash final), puis redeploie. Sinon le
+                navigateur ne peut pas joindre l’API (erreur « failed to fetch »).
+              </p>
+            </CardBody>
+          </Card>
+        ) : null}
         {!isLoggedIn ? (
           <Card>
             <CardBody className="flex flex-col items-center py-10 md:py-14">

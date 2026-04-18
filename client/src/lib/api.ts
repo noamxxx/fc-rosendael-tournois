@@ -1,10 +1,13 @@
-import { API_URL } from './config'
+import { API_URL, assertApiBaseConfigured } from './config'
 import { notifyAdminAuthChanged } from './adminAuth'
 import type { TeamPlayer, TournamentSnapshot, TournamentPublic, TournamentsIndex } from './types'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  assertApiBaseConfigured()
   const token = localStorage.getItem('adminToken') ?? ''
-  const res = await fetch(`${API_URL}${path}`, {
+  let res: Response
+  try {
+    res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
@@ -12,6 +15,12 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {}),
     },
   })
+  } catch (e) {
+    const hint =
+      'Impossible de joindre l’API. Vérifie VITE_API_URL (HTTPS), que le serveur tourne, et les en-têtes CORS (ORIGIN sur l’API).'
+    if (e instanceof TypeError) throw new Error(hint)
+    throw e
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     if (res.status === 401) {
@@ -37,11 +46,20 @@ export async function adminLogin(password: string): Promise<void> {
 
 /** Jeton Google (credential) → même session admin que le mot de passe. */
 export async function adminLoginWithGoogle(credential: string): Promise<{ email?: string }> {
-  const res = await fetch(`${API_URL}/api/auth/google`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ credential }),
-  })
+  assertApiBaseConfigured()
+  let res: Response
+  try {
+    res = await fetch(`${API_URL}/api/auth/google`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    })
+  } catch (e) {
+    const hint =
+      'Impossible de joindre l’API. Vérifie VITE_API_URL (HTTPS), que le serveur tourne, et les en-têtes CORS (ORIGIN sur l’API).'
+    if (e instanceof TypeError) throw new Error(hint)
+    throw e
+  }
   const text = await res.text().catch(() => '')
   if (!res.ok) throw new Error(text || `Erreur serveur (${res.status}).`)
   const data = JSON.parse(text) as { token: string; email?: string }
