@@ -1,0 +1,47 @@
+# Render Blueprint — API Node (`server/`) pour FC Rosendael
+#
+# 1) Première fois (obligatoire une fois) : https://dashboard.render.com → New → Blueprint
+#    → connecter ce dépôt Git → branche `main` → Deploy. Renseigner les variables `sync: false`.
+# 2) Ensuite : chaque push sur `main` qui modifie `server/**` ou ce fichier relance le build.
+# 3) CLI : installer https://render.com/docs/cli puis `npm run render:login` et `npm run render:validate`
+#
+# Après déploiement : URL du type `https://fc-rosendael-api.onrender.com`
+# → Cloudflare Pages : variable de build `VITE_API_URL` = cette URL (HTTPS, sans slash final).
+#
+# Plan `free` : instance qui peut dormir après inactivité ; pas de disque persistant → en prod
+# utilise Turso (`TURSO_*`). Dépôt Git **privé** : Render exige un plan payant pour le free web.
+
+services:
+  - type: web
+    name: fc-rosendael-api
+    runtime: node
+    region: frankfurt
+    plan: free
+    rootDir: server
+    branch: main
+    buildFilter:
+      paths:
+        - server/**
+        - render.yaml
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: NODE_ENV
+        value: production
+      - key: ORIGIN
+        value: "*"
+      - key: ADMIN_TOKEN_SECRET
+        generateValue: true
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: ADMIN_GOOGLE_EMAILS
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

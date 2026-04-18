@@ -10,7 +10,12 @@
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
     "pages:login": "npm run pages:login --prefix client",
-    "pages:deploy": "npm run pages:deploy --prefix client"
+    "pages:deploy": "npm run pages:deploy --prefix client",
+    "render:login": "render login",
+    "render:validate": "render blueprints validate render.yaml",
+    "render:services": "render services list -o text --confirm",
+    "render:deploy": "render deploys create",
+    "render:logs": "render logs"
   },
   "keywords": [],
   "author": "",

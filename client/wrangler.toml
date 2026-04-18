@@ -15,3 +15,4 @@ pages_build_output_dir = "./dist"
 # Base de données : Pages ne sert que le front. L’API Node (dossier server/) doit tourner ailleurs.
 # Base cloud recommandée (déjà gérée par le code) : Turso → variables TURSO_DATABASE_URL + TURSO_AUTH_TOKEN
 # sur l’hébergeur de l’API (voir server/.env.example).
+# Ex. API sur Render (Blueprint render.yaml) : VITE_API_URL = https://fc-rosendael-api.onrender.com
