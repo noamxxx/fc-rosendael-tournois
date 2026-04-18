@@ -1,15 +1,9 @@
-# Déploiement Cloudflare Pages (pousse ce fichier après : gh auth refresh -h github.com -s workflow)
-# Secret requis : CLOUDFLARE_API_TOKEN. Optionnel : VITE_API_URL, VITE_GOOGLE_CLIENT_ID
+# Déploiement optionnel via GitHub Actions (secret CLOUDFLARE_API_TOKEN + optionnel VITE_*).
+# Le déploiement principal est censé se faire via Cloudflare : Workers & Pages → projet → Builds → Connect to Git.
 name: Deploy Cloudflare Pages
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'client/**'
-      - 'package.json'
-      - '.github/workflows/deploy-cloudflare-pages.yml'
 
 jobs:
   deploy:
