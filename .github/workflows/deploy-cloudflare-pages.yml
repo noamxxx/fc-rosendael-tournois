@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'client/**'
+      - 'package.json'
       - '.github/workflows/deploy-cloudflare-pages.yml'
 
 jobs:

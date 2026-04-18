@@ -1,6 +1,7 @@
 # Projet Cloudflare Pages (création : npx wrangler pages project create <nom>)
 name = "club-rosendael-tournois"
 compatibility_date = "2025-04-01"
+pages_build_output_dir = "./dist"
 
 # --- Connexion Google sur Pages ---
 # 1) Google Cloud Console → APIs & Services → Identifiants → client OAuth « Application Web »
