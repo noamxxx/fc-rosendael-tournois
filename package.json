@@ -16,6 +16,7 @@
     "render:services": "render services list -o text --confirm",
     "render:create": "pwsh -NoProfile -File scripts/render-create-api.ps1",
     "render:env": "node scripts/push-render-env.mjs",
+    "render:rotate-admin": "node scripts/rotate-render-admin-password.mjs",
     "render:deploy": "render deploys create",
     "render:logs": "render logs"
   },
