@@ -10,6 +10,27 @@ const defaultDbPath = path.resolve(__dirname, '..', '..', 'data.sqlite')
 const filePath = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : defaultDbPath
 const tursoLocalPath = path.join(__dirname, '..', '.turso-local.json')
 
+/** Render / prod : pas de disque persistant → interdit SQLite ou .turso-local sur le conteneur. */
+function isPersistProduction() {
+  const n = String(process.env.NODE_ENV || '').toLowerCase()
+  if (n === 'production') return true
+  if (String(process.env.RENDER || '').toLowerCase() === 'true') return true
+  return false
+}
+
+function assertProductionTurso(envUrl, authToken) {
+  if (!envUrl.startsWith('libsql://')) {
+    throw new Error(
+      'Production : TURSO_DATABASE_URL doit être une URL Turso (libsql://…). Le fichier SQLite sur le serveur est effacé à chaque redéploiement.',
+    )
+  }
+  if (!authToken || authToken.length < 8) {
+    throw new Error(
+      'Production : définissez TURSO_AUTH_TOKEN (jeton Turso) avec TURSO_DATABASE_URL. Sans base distante persistante, les données sont perdues.',
+    )
+  }
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS tournaments (
   id TEXT PRIMARY KEY,
@@ -120,6 +141,25 @@ function readTursoLocalFile() {
 }
 
 function resolveDbConfig() {
+  const envUrl = (process.env.TURSO_DATABASE_URL || '').trim()
+  const envToken = (process.env.TURSO_AUTH_TOKEN || '').trim()
+
+  if (isPersistProduction()) {
+    // Ne jamais lire .turso-local.json en prod : il est sur un disque éphémère et peut masquer les variables Render.
+    if (!envUrl) {
+      throw new Error(
+        'Production : définissez TURSO_DATABASE_URL et TURSO_AUTH_TOKEN sur l’hébergeur (ex. Render → Environment). ' +
+          'Le disque du conteneur gratuit est réinitialisé : un fichier SQLite local ne conserve pas les tournois.',
+      )
+    }
+    assertProductionTurso(envUrl, envToken)
+    return {
+      url: envUrl,
+      authToken: envToken || undefined,
+      source: 'env',
+    }
+  }
+
   const fromFile = readTursoLocalFile()
   if (fromFile) {
     return {
@@ -128,11 +168,10 @@ function resolveDbConfig() {
       source: 'local_file',
     }
   }
-  const envUrl = (process.env.TURSO_DATABASE_URL || '').trim()
   if (envUrl) {
     return {
       url: envUrl,
-      authToken: (process.env.TURSO_AUTH_TOKEN || '').trim() || undefined,
+      authToken: envToken || undefined,
       source: 'env',
     }
   }
@@ -203,6 +242,14 @@ async function initDb() {
 }
 
 async function saveTursoLocalAndReinit(databaseUrl, authToken) {
+  if (isPersistProduction()) {
+    const err = new Error(
+      'En production, la base Turso se configure uniquement dans les variables d’environnement du service ' +
+        '(TURSO_DATABASE_URL, TURSO_AUTH_TOKEN). Un fichier sur le serveur serait effacé au prochain déploiement.',
+    )
+    err.status = 400
+    throw err
+  }
   fs.mkdirSync(path.dirname(tursoLocalPath), { recursive: true })
   fs.writeFileSync(
     tursoLocalPath,

@@ -10,8 +10,9 @@
 # Après déploiement : URL du type `https://fc-rosendael-api.onrender.com`
 # → Cloudflare Pages : variable de build `VITE_API_URL` = cette URL (HTTPS, sans slash final).
 #
-# Plan `free` : instance qui peut dormir après inactivité ; pas de disque persistant → en prod
-# utilise Turso (`TURSO_*`). Dépôt Git **privé** : Render exige un plan payant pour le free web.
+# Plan `free` : pas de disque persistant — obligatoire : TURSO_DATABASE_URL + TURSO_AUTH_TOKEN (Turso).
+# Sans ces variables, le serveur refuse de démarrer (évite SQLite effacé à chaque déploiement).
+# Dépôt Git **privé** : Render exige un plan payant pour le free web.
 
 services:
   - type: web
