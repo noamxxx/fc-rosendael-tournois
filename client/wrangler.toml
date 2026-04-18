@@ -1,5 +1,5 @@
-# Projet Cloudflare Pages (création : npx wrangler pages project create <nom>)
-name = "club-rosendael-tournois"
+# Projet Cloudflare Pages — doit correspondre au nom dans le dashboard (URL : <name>.pages.dev)
+name = "fc-rosendael-tournois"
 compatibility_date = "2025-04-01"
 pages_build_output_dir = "./dist"
 
