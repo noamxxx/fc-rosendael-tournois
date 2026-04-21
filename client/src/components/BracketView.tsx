@@ -356,6 +356,12 @@ export function BracketView({
 
   const panMode = isMobile || isTouch
 
+  function isInteractiveTarget(target: EventTarget | null) {
+    const el = target instanceof HTMLElement ? target : null
+    if (!el) return false
+    return Boolean(el.closest('input, textarea, select, button, a, label, [role="button"], [data-no-pan]'))
+  }
+
   // Keep drafts in sync with server snapshot (only if user hasn't started editing this match).
   useEffect(() => {
     if (!editableScores?.enabled) return
@@ -448,6 +454,8 @@ export function BracketView({
         return
       }
       if (e.touches.length === 1) {
+        // Allow focusing / editing inputs (scores) on mobile.
+        if (isInteractiveTarget(e.target)) return
         const now = Date.now()
         const dt = now - pinchRef.current.lastTapAt
         pinchRef.current.lastTapAt = now
@@ -475,6 +483,7 @@ export function BracketView({
 
       if (!pinchRef.current.dragActive) return
       if (e.touches.length !== 1) return
+      if (isInteractiveTarget(e.target)) return
       const dx = e.touches[0].clientX - pinchRef.current.dragStartX
       const dy = e.touches[0].clientY - pinchRef.current.dragStartY
       const maxL = Math.max(0, el.scrollWidth - el.clientWidth)
@@ -518,6 +527,7 @@ export function BracketView({
       if (e.pointerType !== 'touch') return
       // If the user is pinching (2 fingers), touch listeners handle it.
       if ((e as any).isPrimary === false) return
+      if (isInteractiveTarget(e.target)) return
       active = true
       pointerId = e.pointerId
       startX = e.clientX
