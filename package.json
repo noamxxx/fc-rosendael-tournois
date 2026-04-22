@@ -19,6 +19,7 @@
     "render:env:turso": "node scripts/push-turso-render-env.mjs",
     "render:rotate-admin": "node scripts/rotate-render-admin-password.mjs",
     "render:deploy": "render deploys create",
+    "render:deploy:api": "node scripts/trigger-render-deploy.mjs",
     "render:logs": "render logs"
   },
   "keywords": [],
