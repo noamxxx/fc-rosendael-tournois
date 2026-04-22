@@ -14,36 +14,106 @@ function formatDate(iso: string | undefined) {
   return d.toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+const HOME_TOURNAMENTS_CACHE_KEY = 'club-home-tournaments-v1'
+const HOME_TOURNAMENTS_CACHE_MS = 60_000
+
+function readTournamentsCache():
+  | { active: TournamentPublic[]; archived: TournamentPublic[]; liveMode: 'auto' | 'none' | 'slug' }
+  | null {
+  try {
+    const raw = sessionStorage.getItem(HOME_TOURNAMENTS_CACHE_KEY)
+    if (!raw) return null
+    const o = JSON.parse(raw) as {
+      t: number
+      active?: TournamentPublic[]
+      archived?: TournamentPublic[]
+      liveMode?: string
+    }
+    if (typeof o.t !== 'number' || Date.now() - o.t > HOME_TOURNAMENTS_CACHE_MS) return null
+    const lm = (o.liveMode === 'none' || o.liveMode === 'slug' || o.liveMode === 'auto' ? o.liveMode : 'auto') as
+      | 'auto'
+      | 'none'
+      | 'slug'
+    return { active: o.active ?? [], archived: o.archived ?? [], liveMode: lm }
+  } catch {
+    return null
+  }
+}
+
+function writeTournamentsCache(payload: {
+  active: TournamentPublic[]
+  archived: TournamentPublic[]
+  liveMode: 'auto' | 'none' | 'slug'
+}) {
+  try {
+    sessionStorage.setItem(
+      HOME_TOURNAMENTS_CACHE_KEY,
+      JSON.stringify({ t: Date.now(), ...payload }),
+    )
+  } catch {
+    /* quota / mode privé */
+  }
+}
+
 export function HomePage() {
   const nav = useNavigate()
   const location = useLocation()
   const [active, setActive] = useState<TournamentPublic[]>([])
   const [archived, setArchived] = useState<TournamentPublic[]>([])
   const [liveMode, setLiveMode] = useState<'auto' | 'none' | 'slug'>('auto')
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [tournamentsStatus, setTournamentsStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [slowLoadHint, setSlowLoadHint] = useState(false)
   const [reg, setReg] = useState<{
     open: boolean
     tournamentName?: string
     tournamentSlug?: string
   } | null>(null)
 
-  const loadHome = useCallback(async () => {
-    try {
-      setStatus('loading')
-      const [data, r] = await Promise.all([listTournaments(), getOpenRegistration()])
-      setActive(data.active ?? [])
-      setArchived(data.archived ?? [])
-      setLiveMode((data.liveMode as 'auto' | 'none' | 'slug') ?? 'auto')
-      setReg(
-        r.open
-          ? { open: true, tournamentName: r.tournament.name, tournamentSlug: r.tournament.slug }
-          : { open: false },
-      )
-      setStatus('ready')
-    } catch {
-      setStatus('error')
+  const loadHome = useCallback(() => {
+    const cached = API_BASE_CONFIGURED ? readTournamentsCache() : null
+    if (cached) {
+      setActive(cached.active)
+      setArchived(cached.archived)
+      setLiveMode(cached.liveMode)
+      setTournamentsStatus('ready')
+    } else {
+      setTournamentsStatus('loading')
     }
+
+    void listTournaments()
+      .then((data) => {
+        const nextActive = data.active ?? []
+        const nextArchived = data.archived ?? []
+        const nextLive = (data.liveMode as 'auto' | 'none' | 'slug') ?? 'auto'
+        setActive(nextActive)
+        setArchived(nextArchived)
+        setLiveMode(nextLive)
+        writeTournamentsCache({ active: nextActive, archived: nextArchived, liveMode: nextLive })
+        setTournamentsStatus('ready')
+      })
+      .catch(() => {
+        if (!cached) setTournamentsStatus('error')
+      })
+
+    void getOpenRegistration()
+      .then((r) =>
+        setReg(
+          r.open
+            ? { open: true, tournamentName: r.tournament.name, tournamentSlug: r.tournament.slug }
+            : { open: false },
+        ),
+      )
+      .catch(() => setReg({ open: false }))
   }, [])
+
+  useEffect(() => {
+    if (tournamentsStatus !== 'loading') {
+      setSlowLoadHint(false)
+      return
+    }
+    const id = window.setTimeout(() => setSlowLoadHint(true), 6500)
+    return () => window.clearTimeout(id)
+  }, [tournamentsStatus])
 
   useEffect(() => {
     void loadHome()
@@ -188,15 +258,23 @@ export function HomePage() {
                     </span>
                   </div>
                 ) : null}
-                {status === 'loading' && (
-                  <div className="mt-3 text-sm text-black/60">Chargement…</div>
+                {tournamentsStatus === 'loading' && (
+                  <div className="mt-3 space-y-2 text-sm text-black/60">
+                    <div>Chargement…</div>
+                    {slowLoadHint ? (
+                      <div className="text-xs leading-relaxed text-black/45">
+                        Si ça reste long : l’API peut être en train de se réveiller (hébergement gratuit). Réessaie
+                        dans quelques secondes.
+                      </div>
+                    ) : null}
+                  </div>
                 )}
-                {status === 'error' && (
+                {tournamentsStatus === 'error' && (
                   <div className="mt-3 text-sm text-red-700">
                     Impossible de charger les tournois. Vérifie que le serveur tourne.
                   </div>
                 )}
-                {status === 'ready' && !current && (
+                {tournamentsStatus === 'ready' && !current && (
                   <>
                     <div className="mt-1 text-2xl font-semibold">
                       Pas de tournoi en ce moment
@@ -206,7 +284,7 @@ export function HomePage() {
                     </div>
                   </>
                 )}
-                {status === 'ready' && current && (
+                {tournamentsStatus === 'ready' && current && (
                   <>
                     {directActif ? (
                       <>
@@ -270,7 +348,7 @@ export function HomePage() {
                   </div>
                 </button>
               ))}
-              {status === 'ready' && archived.length === 0 && (
+              {tournamentsStatus === 'ready' && archived.length === 0 && (
                 <div className="md:col-span-2 flex items-center justify-center">
                   <div className="rounded-2xl border border-black/10 bg-white px-4 py-6 text-sm text-black/55">
                     Aucun tournoi archivé pour le moment.
