@@ -11,7 +11,23 @@ export default defineConfig(({ mode }) => {
   const productionUrl = fromEnv || DEFAULT_PRODUCTION_API_URL
 
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      {
+        name: 'inject-api-preconnect',
+        transformIndexHtml(html) {
+          if (mode !== 'production') return html
+          try {
+            const origin = new URL(productionUrl).origin
+            const extra = `    <link rel="dns-prefetch" href="${origin}" />\n    <link rel="preconnect" href="${origin}" crossorigin />\n`
+            return html.replace('<head>', `<head>\n${extra}`)
+          } catch {
+            return html
+          }
+        },
+      },
+    ],
     ...(mode === 'production'
       ? {
           define: {

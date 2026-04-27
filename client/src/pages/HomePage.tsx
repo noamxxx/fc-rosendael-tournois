@@ -62,7 +62,6 @@ export function HomePage() {
   const [archived, setArchived] = useState<TournamentPublic[]>([])
   const [liveMode, setLiveMode] = useState<'auto' | 'none' | 'slug'>('auto')
   const [tournamentsStatus, setTournamentsStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [slowLoadHint, setSlowLoadHint] = useState(false)
   const [reg, setReg] = useState<{
     open: boolean
     tournamentName?: string
@@ -105,15 +104,6 @@ export function HomePage() {
       )
       .catch(() => setReg({ open: false }))
   }, [])
-
-  useEffect(() => {
-    if (tournamentsStatus !== 'loading') {
-      setSlowLoadHint(false)
-      return
-    }
-    const id = window.setTimeout(() => setSlowLoadHint(true), 6500)
-    return () => window.clearTimeout(id)
-  }, [tournamentsStatus])
 
   useEffect(() => {
     void loadHome()
@@ -259,15 +249,7 @@ export function HomePage() {
                   </div>
                 ) : null}
                 {tournamentsStatus === 'loading' && (
-                  <div className="mt-3 space-y-2 text-sm text-black/60">
-                    <div>Chargement…</div>
-                    {slowLoadHint ? (
-                      <div className="text-xs leading-relaxed text-black/45">
-                        Si ça reste long : l’API peut être en train de se réveiller (hébergement gratuit). Réessaie
-                        dans quelques secondes.
-                      </div>
-                    ) : null}
-                  </div>
+                  <div className="mt-3 text-sm text-black/60">Chargement…</div>
                 )}
                 {tournamentsStatus === 'error' && (
                   <div className="mt-3 text-sm text-red-700">
